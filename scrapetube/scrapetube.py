@@ -1,10 +1,9 @@
 import json
 import time
 from typing import Generator
-
+from typing import Union
 import requests
 from typing_extensions import Literal
-
 type_property_map = {
     "videos": "videoRenderer",
     "streams": "videoRenderer",
@@ -18,7 +17,8 @@ def get_channel(
     sleep: int = 1,
     sort_by: Literal["newest", "oldest", "popular"] = "newest",
     content_type: Literal["videos", "shorts", "streams"] = "videos",
-    proxies: dict = {}
+    proxies: dict = {},
+    verify: Union[str, bool] = True
 ) -> Generator[dict, None, None]:
 
     """Get videos for a channel.
@@ -60,13 +60,13 @@ def get_channel(
         sort_by=sort_by_map[sort_by],
     )
     api_endpoint = "https://www.youtube.com/youtubei/v1/browse"
-    videos = get_videos(url, api_endpoint, type_property_map[content_type], limit, sleep, proxies = proxies)
+    videos = get_videos(url, api_endpoint, type_property_map[content_type], limit, sleep, proxies = proxies, verify = verify)
     for video in videos:
         yield video
 
 
 def get_playlist(
-    playlist_id: str, limit: int = None, sleep: int = 1, proxies: dict = {}
+    playlist_id: str, limit: int = None, sleep: int = 1, proxies: dict = {}, verify: Union[str, bool] = True
 ) -> Generator[dict, None, None]:
 
     """Get videos for a playlist.
@@ -85,7 +85,7 @@ def get_playlist(
 
     url = f"https://www.youtube.com/playlist?list={playlist_id}"
     api_endpoint = "https://www.youtube.com/youtubei/v1/browse"
-    videos = get_videos(url, api_endpoint, "playlistVideoRenderer", limit, sleep, proxies = proxies)
+    videos = get_videos(url, api_endpoint, "playlistVideoRenderer", limit, sleep, proxies = proxies, verify = verify)
     for video in videos:
         yield video
 
@@ -96,7 +96,8 @@ def get_search(
     sleep: int = 1,
     sort_by: Literal["relevance", "upload_date", "view_count", "rating"] = "relevance",
     results_type: Literal["video", "channel", "playlist", "movie"] = "video",
-    proxies: dict = {}
+    proxies: dict = {},
+    verify: Union[str, bool] = True,
 ) -> Generator[dict, None, None]:
 
     """Search youtube and get videos.
@@ -143,14 +144,14 @@ def get_search(
     url = f"https://www.youtube.com/results?search_query={query}&sp={param_string}"
     api_endpoint = "https://www.youtube.com/youtubei/v1/search"
     videos = get_videos(
-        url, api_endpoint, results_type_map[results_type][1], limit, sleep, proxies = proxies
+        url, api_endpoint, results_type_map[results_type][1], limit, sleep, proxies = proxies, verify = verify
     )
     for video in videos:
         yield video
 
 
 def get_videos(
-    url: str, api_endpoint: str, selector: str, limit: int, sleep: int, proxies: dict = {}
+    url: str, api_endpoint: str, selector: str, limit: int, sleep: int, proxies: dict = {}, verify: Union[str, bool] = True
 ) -> Generator[dict, None, None]:
     session = requests.Session()
     session.headers[
@@ -161,7 +162,7 @@ def get_videos(
     count = 0
     while True:
         if is_first:
-            html = get_initial_data(session, url)
+            html = get_initial_data(session, url, proxies=proxies, verify=verify)
             client = json.loads(
                 get_json_from_html(html, "INNERTUBE_CONTEXT", 2, '"}},') + '"}}'
             )["client"]
@@ -174,7 +175,7 @@ def get_videos(
             next_data = get_next_data(data)
             is_first = False
         else:
-            data = get_ajax_data(session, api_endpoint, api_key, next_data, client)
+            data = get_ajax_data(session, api_endpoint, api_key, next_data, client, proxies=proxies, verify=verify)
             next_data = get_next_data(data)
         for result in get_videos_items(data, selector):
             try:
@@ -195,9 +196,9 @@ def get_videos(
     session.close()
 
 
-def get_initial_data(session: requests.Session, url: str, proxies: dict = {}) -> str:
+def get_initial_data(session: requests.Session, url: str, proxies: dict = {}, verify: Union[str, bool] = True) -> str:
     session.cookies.set("CONSENT", "YES+cb", domain=".youtube.com")
-    response = session.get(url, proxies=proxies)
+    response = session.get(url, proxies=proxies, verify=verify)
 
     html = response.text
     return html
@@ -209,13 +210,14 @@ def get_ajax_data(
     api_key: str,
     next_data: dict,
     client: dict,
-    proxies: dict = {}
+    proxies: dict = {},
+    verify: Union[str, bool] = True
 ) -> dict:
     data = {
         "context": {"clickTracking": next_data["click_params"], "client": client},
         "continuation": next_data["token"],
     }
-    response = session.post(api_endpoint, params={"key": api_key}, json=data, proxies=proxies)
+    response = session.post(api_endpoint, params={"key": api_key}, json=data, proxies=proxies, verify=verify)
     return response.json()
 
 
