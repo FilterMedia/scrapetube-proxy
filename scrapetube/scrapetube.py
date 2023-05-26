@@ -18,6 +18,7 @@ def get_channel(
     sleep: int = 1,
     sort_by: Literal["newest", "oldest", "popular"] = "newest",
     content_type: Literal["videos", "shorts", "streams"] = "videos",
+    proxies: dict = {}
 ) -> Generator[dict, None, None]:
 
     """Get videos for a channel.
@@ -59,13 +60,13 @@ def get_channel(
         sort_by=sort_by_map[sort_by],
     )
     api_endpoint = "https://www.youtube.com/youtubei/v1/browse"
-    videos = get_videos(url, api_endpoint, type_property_map[content_type], limit, sleep)
+    videos = get_videos(url, api_endpoint, type_property_map[content_type], limit, sleep, proxies = proxies)
     for video in videos:
         yield video
 
 
 def get_playlist(
-    playlist_id: str, limit: int = None, sleep: int = 1
+    playlist_id: str, limit: int = None, sleep: int = 1, proxies: dict = {}
 ) -> Generator[dict, None, None]:
 
     """Get videos for a playlist.
@@ -84,7 +85,7 @@ def get_playlist(
 
     url = f"https://www.youtube.com/playlist?list={playlist_id}"
     api_endpoint = "https://www.youtube.com/youtubei/v1/browse"
-    videos = get_videos(url, api_endpoint, "playlistVideoRenderer", limit, sleep)
+    videos = get_videos(url, api_endpoint, "playlistVideoRenderer", limit, sleep, proxies = proxies)
     for video in videos:
         yield video
 
@@ -95,6 +96,7 @@ def get_search(
     sleep: int = 1,
     sort_by: Literal["relevance", "upload_date", "view_count", "rating"] = "relevance",
     results_type: Literal["video", "channel", "playlist", "movie"] = "video",
+    proxies: dict = {}
 ) -> Generator[dict, None, None]:
 
     """Search youtube and get videos.
@@ -141,14 +143,14 @@ def get_search(
     url = f"https://www.youtube.com/results?search_query={query}&sp={param_string}"
     api_endpoint = "https://www.youtube.com/youtubei/v1/search"
     videos = get_videos(
-        url, api_endpoint, results_type_map[results_type][1], limit, sleep
+        url, api_endpoint, results_type_map[results_type][1], limit, sleep, proxies = proxies
     )
     for video in videos:
         yield video
 
 
 def get_videos(
-    url: str, api_endpoint: str, selector: str, limit: int, sleep: int
+    url: str, api_endpoint: str, selector: str, limit: int, sleep: int, proxies: dict = {}
 ) -> Generator[dict, None, None]:
     session = requests.Session()
     session.headers[
@@ -166,6 +168,9 @@ def get_videos(
             api_key = get_json_from_html(html, "innertubeApiKey", 3)
             session.headers["X-YouTube-Client-Name"] = "1"
             session.headers["X-YouTube-Client-Version"] = client["clientVersion"]
+            if 'http' in proxies or 'https' in proxies:
+              session.proxies.update(proxies)
+
             data = json.loads(
                 get_json_from_html(html, "var ytInitialData = ", 0, "};") + "}"
             )
