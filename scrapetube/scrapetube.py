@@ -168,9 +168,6 @@ def get_videos(
             api_key = get_json_from_html(html, "innertubeApiKey", 3)
             session.headers["X-YouTube-Client-Name"] = "1"
             session.headers["X-YouTube-Client-Version"] = client["clientVersion"]
-            if 'http' in proxies or 'https' in proxies:
-              session.proxies.update(proxies)
-
             data = json.loads(
                 get_json_from_html(html, "var ytInitialData = ", 0, "};") + "}"
             )
@@ -198,9 +195,9 @@ def get_videos(
     session.close()
 
 
-def get_initial_data(session: requests.Session, url: str) -> str:
+def get_initial_data(session: requests.Session, url: str, proxies: dict = {}) -> str:
     session.cookies.set("CONSENT", "YES+cb", domain=".youtube.com")
-    response = session.get(url)
+    response = session.get(url, proxies=proxies)
 
     html = response.text
     return html
@@ -212,12 +209,13 @@ def get_ajax_data(
     api_key: str,
     next_data: dict,
     client: dict,
+    proxies: dict = {}
 ) -> dict:
     data = {
         "context": {"clickTracking": next_data["click_params"], "client": client},
         "continuation": next_data["token"],
     }
-    response = session.post(api_endpoint, params={"key": api_key}, json=data)
+    response = session.post(api_endpoint, params={"key": api_key}, json=data, proxies=proxies)
     return response.json()
 
 
